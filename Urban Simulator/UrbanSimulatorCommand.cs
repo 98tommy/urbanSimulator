@@ -17,6 +17,8 @@ namespace Urban_Simulator
             Instance = this;
         }
 
+        //testing for git
+
         ///<summary>The only instance of this command.</summary>
         public static UrbanSimulatorCommand Instance
         {
@@ -26,47 +28,21 @@ namespace Urban_Simulator
         ///<returns>The command name as it appears on the Rhino command line.</returns>
         public override string EnglishName
         {
-            get { return "UrbanSimulatorCommand"; }
+            get { return "UrbanSimulator"; }
         }
 
         protected override Result RunCommand(RhinoDoc doc, RunMode mode)
         {
-            // TODO: start here modifying the behaviour of your command.
-            // ---
-            RhinoApp.WriteLine("The {0} command will add a line right now.", EnglishName);
 
-            Point3d pt0;
-            using (GetPoint getPointAction = new GetPoint())
-            {
-                getPointAction.SetCommandPrompt("Please select the start point");
-                if (getPointAction.Get() != GetResult.Point)
-                {
-                    RhinoApp.WriteLine("No start point was selected.");
-                    return getPointAction.CommandResult();
-                }
-                pt0 = getPointAction.Point();
-            }
+            RhinoApp.WriteLine("The Urban Simulator has begun.", EnglishName);
 
-            Point3d pt1;
-            using (GetPoint getPointAction = new GetPoint())
-            {
-                getPointAction.SetCommandPrompt("Please select the end point");
-                getPointAction.SetBasePoint(pt0, true);
-                getPointAction.DynamicDraw +=
-                  (sender, e) => e.Display.DrawLine(pt0, e.CurrentPoint, System.Drawing.Color.DarkRed);
-                if (getPointAction.Get() != GetResult.Point)
-                {
-                    RhinoApp.WriteLine("No end point was selected.");
-                    return getPointAction.CommandResult();
-                }
-                pt1 = getPointAction.Point();
-            }
+            //getprecinct()             //ask user to select a surface representing the precinct
+            //generateRoadNetwort()     //Ui=sing precinct generate road network
+            //createBlocks()            //Using road network, create blocks
+            //subdivideBlocks()         //Subdivide blocks into plots
+            //instantiateBuildings()    //Place buildings on each plot
 
-            doc.Objects.AddLine(pt0, pt1);
-            doc.Views.Redraw();
-            RhinoApp.WriteLine("The {0} command added one line to the document.", EnglishName);
-
-            // ---
+            RhinoApp.WriteLine("The Urban Simulator is complete.", EnglishName);
 
             return Result.Success;
         }
