@@ -44,13 +44,15 @@ namespace Urban_Simulator
             if (!generateRoadNetwork(theUrbanModel))    //Ui=sing precinct generate road network
                 return Result.Failure;
 
-            //createBlocks()                            //Using road network, create blocks
-            //subdivideBlocks()                         //Subdivide blocks into plots
+            createBlocks(theUrbanModel);                //Using road network, create blocks
+
+            subdivideBlocks(theUrbanModel, 30, 20);                         //Subdivide blocks into plots
+
             //instantiateBuildings()                    //Place buildings on each plot
 
             RhinoApp.WriteLine("The Urban Simulator is complete.", EnglishName);
 
-
+            RhinoDoc.ActiveDoc.Views.Redraw();
             return Result.Success;
         }
 
@@ -79,7 +81,7 @@ namespace Urban_Simulator
 
         public bool generateRoadNetwork(urbanModel model)
         {
-            int noIterations = 4;
+            int noIterations = 5;
 
             Random rndRoadT = new Random();
 
@@ -108,7 +110,6 @@ namespace Urban_Simulator
             else
                 return false;
 
-            return true;
         }
 
         public bool recursivePerpLine(Curve inpCrv, ref List<Curve> inpObst, Random inpRnd, int dir, int cnt)
@@ -143,5 +144,131 @@ namespace Urban_Simulator
 
             return true;
         }
+
+        public bool createBlocks(urbanModel model)
+        {
+
+            Brep precinctPolySurface = model.precicntSrf.ToBrep().Faces[0].Split(model.roadNetwork, RhinoDoc.ActiveDoc.ModelAbsoluteTolerance);
+
+            List<Brep> blocks = new List<Brep>();
+
+            foreach(BrepFace itBF in precinctPolySurface.Faces)
+            {
+                Brep itBlock = itBF.DuplicateFace(false);
+                itBlock.Faces.ShrinkFaces();
+                blocks.Add(itBlock);
+                RhinoDoc.ActiveDoc.Objects.AddBrep(itBlock);
+            }
+
+            if(blocks.Count > 0)
+            {
+                model.blocks = blocks;
+                return true;
+            }
+            else
+            {
+                return false;                    
+            }
+
+
+        }
+
+        public bool subdivideBlocks(urbanModel model, int minPlotDepth, int maxPlotWidth)
+        {
+            model.plots = new List<Brep>();
+
+            foreach(Brep itBlock in model.blocks)
+            {
+                Curve[] borderCrvs = itBlock.DuplicateNakedEdgeCurves(true, false);
+
+                List<Curve> splitLines = new List<Curve>();
+
+                itBlock.Faces[0].SetDomain(0, new Interval(0, 1));
+                itBlock.Faces[0].SetDomain(1, new Interval(0, 1));
+
+                Point3d pt1 = itBlock.Surfaces[0].PointAt(0, 0);
+                Point3d pt2 = itBlock.Surfaces[0].PointAt(0, 1);
+                Point3d pt3 = itBlock.Surfaces[0].PointAt(1, 1);
+                Point3d pt4 = itBlock.Surfaces[0].PointAt(1, 0);
+
+                double length = pt1.DistanceTo(pt2);
+                double width = pt1.DistanceTo(pt4);
+
+                Point3d sdPt1 = new Point3d();
+                Point3d sdPt2 = new Point3d();
+
+                if (length > width) //length is wider
+                {
+                    if (width > (minPlotDepth * 2)) //Suitable for subdivision
+                    {
+                        //Create a subdividing line
+                        sdPt1 = itBlock.Surfaces[0].PointAt(0.5, 0);
+                        sdPt2 = itBlock.Surfaces[0].PointAt(0.5, 1);
+                    }
+                }
+                else //Width is wider
+                {
+                    if (length > (minPlotDepth * 2)) //Suitable for subdivision
+                    {
+                        //Create a subdividing line
+                        sdPt1 = itBlock.Surfaces[0].PointAt(0, 0.5);
+                        sdPt2 = itBlock.Surfaces[0].PointAt(1, 0.5);
+                    }
+
+                }
+
+                Line subDLine = new Line(sdPt1, sdPt2);
+                Curve subDCrv = subDLine.ToNurbsCurve();
+
+                splitLines.Add(subDCrv);
+
+                double crvLength = subDCrv.GetLength();
+                double noPlots = Math.Floor(crvLength / maxPlotWidth);
+
+                for(int t = 0; t < noPlots - 1; t++)
+                {
+                    double tVal = t * (1 / noPlots);
+
+                    Plane perpFrm;
+
+                    Point3d evalPt = subDCrv.PointAtNormalizedLength(tVal);
+                    subDCrv.PerpendicularFrameAt(tVal, out perpFrm);
+
+                    Point3d ptPer2Up = Point3d.Add(evalPt, perpFrm.XAxis);
+                    Point3d ptPer2Down = Point3d.Add(evalPt, -perpFrm.XAxis);
+
+                    //draw line perpendicular
+                    Line ln1 = new Line(evalPt, ptPer2Up);
+                    Line ln2 = new Line(evalPt, ptPer2Down);
+
+                    Curve lnExt1 = ln1.ToNurbsCurve().ExtendByLine(CurveEnd.End, borderCrvs);
+                    Curve lnExt2 = ln2.ToNurbsCurve().ExtendByLine(CurveEnd.End, borderCrvs);
+
+                    splitLines.Add(lnExt1);
+                    splitLines.Add(lnExt2);
+                                       
+
+                }
+
+
+                Brep plotPolySurface = itBlock.Faces[0].Split(splitLines, RhinoDoc.ActiveDoc.ModelAbsoluteTolerance);
+
+
+                foreach (BrepFace itBF in plotPolySurface.Faces)
+                {
+                    Brep itPlot = itBF.DuplicateFace(false);
+                    itPlot.Faces.ShrinkFaces();
+                    model.plots.Add(itBlock);
+                    RhinoDoc.ActiveDoc.Objects.AddBrep(itPlot);
+                }
+
+
+                RhinoDoc.ActiveDoc.Views.Redraw();
+
+            }
+            
+            return true;
+        }
+
     }
 }
